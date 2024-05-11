@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Generate Images using Leap AI</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Generate Images using Leap AI</h1>
+      <label for="prompt"></label>
+      <input type="text" id="prompt" placeholder="Enter your prompt here" />
+      <button id="generateButton">Generate Images</button>
+      <div id="loading" class="loading"></div>
+      <div id="output"></div>
+    </div>
+
+    <script src="https://unpkg.com/unfetch/dist/unfetch.umd.js"></script>
+    <script>
+      const API_KEY = "8b33e1fa-85f7-4a5b-b23f-04f32610f16f";
+
+      const HEADERS = {
+        accept: "application/json",
+        "content-type": "application/json",
+        authorization: `Bearer ${API_KEY}`,
+      };
+
+      function generateImage(model_id, prompt) {
+        const url = `https://api.tryleap.ai/api/v1/images/models/${model_id}/inferences`;
+
+        const payload = {
+          prompt,
+          steps: 50,
+          width: 512,
+          height: 512,
+          numberOfImages: 1,
+          promptStrength: 7,
+          enhancePrompt: false,
+          restoreFaces: true,
+          upscaleBy: "x1",
+        };
+
+        return fetch(url, {
+          method: "POST",
+          headers: HEADERS,
+          body: JSON.stringify(payload),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            console.log(data);
+            const inference_id = data.id;
+            const status = data.status;
+
+            console.log(`Inference ID: ${inference_id}. Status: ${status}`);
+
+            return inference_id;
+          });
+      }
+
+      function getInferenceJob(model_id, inference_id) {
+        const url = `https://api.tryleap.ai/api/v1/images/models/${model_id}/inferences/${inference_id}`;
+
+        return fetch(url, {
+          method: "GET",
+          headers: HEADERS,
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            const inference_id = data.id;
+            const state = data.state;
+            let images = null;
+
+            if (data.images.length > 0) {
+              images = data.images;
+            }
+
+            console.log(`Inference ID: ${inference_id}. State: ${state}`);
+
+            return { inference_id, state, images };
+          });
+      }
+
+      const model_id = "eab32df0-de26-4b83-a908-a83f3015e971";
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const generateButton = document.getElementById("generateButton");
+        const loadingIcon = document.getElementById("loading");
+
+        generateButton.addEventListener("click", () => {
+          const promptInput = document.getElementById("prompt");
+          const prompt = promptInput.value;
+
+          if (prompt) {
+            loadingIcon.style.display = "block";
+
+            generateImage(model_id, prompt).then((inference_id) => {
+              const outputDiv = document.getElementById("output");
+              outputDiv.innerHTML = "";
+
+              function checkStatus() {
+                getInferenceJob(model_id, inference_id).then(
+                  ({ inference_id, state, images }) => {
+                    if (state !== "finished") {
+                      setTimeout(checkStatus, 10000);
+                    } else {
+                      loadingIcon.style.display = "none";
+                      for (const image of images) {
+                        const imageElement = document.createElement("img");
+                        imageElement.src = image.uri;
+                        outputDiv.appendChild(imageElement);
+                      }
+                    }
+                  }
+                );
+              }
+
+              checkStatus();
+            });
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
